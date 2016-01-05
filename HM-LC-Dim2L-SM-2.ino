@@ -24,11 +24,11 @@
 
 #define MAX_BRIGHTNESS 128
 
-#define SER_DBG																				// serial debug messages
+#define SER_DBG                                        // serial debug messages
 
 //- load library's --------------------------------------------------------------------------------------------------------
-#include <AS.h>																				// ask sin framework
-#include "register.h"																		// configuration sheet
+#include <AS.h>                                       // ask sin framework
+#include "register.h"                                   // configuration sheet
 
 
 //- Neopixel --------------------------------------------------------------------------------------------------------
@@ -41,9 +41,9 @@
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(8, 5, NEO_GRB + NEO_KHZ800);  
-Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(8, 6, NEO_GRB + NEO_KHZ800);  
-Adafruit_NeoPixel strip3 = Adafruit_NeoPixel(8, 7, NEO_GRB + NEO_KHZ800);  
+Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(2, 5, NEO_GRB + NEO_KHZ800);  
+Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(2, 14, NEO_GRB + NEO_KHZ800);  
+Adafruit_NeoPixel strip3 = Adafruit_NeoPixel(2, 15, NEO_GRB + NEO_KHZ800);  
 
 
 void ledstripeStatus( uint8_t type, uint8_t stat ) {
@@ -88,6 +88,30 @@ void resetAllStrips() {
 }
 
 
+void showAStrip(Adafruit_NeoPixel *strip) {
+
+    for(int i=0; i<8; i++) {
+      strip->setPixelColor(i, 255,0,0);
+    }
+    strip->show();
+
+    _delay_ms (1000);                                   // ...and some information
+    
+    for(int i=0; i<8; i++) {
+      strip->setPixelColor(i, 0,255,0);
+    }
+    strip->show();
+
+    _delay_ms (1000);                                   // ...and some information
+
+    for(int i=0; i<8; i++) {
+      strip->setPixelColor(i, 0,0,255);
+    }
+    strip->show();
+
+    _delay_ms (1000);                                   // ...and some information
+}
+
 void setColor(uint8_t chann, uint8_t r, uint8_t g, uint8_t b) {
   uint16_t i;
 
@@ -107,9 +131,14 @@ void setColor(uint8_t chann, uint8_t r, uint8_t g, uint8_t b) {
       strip1.setPixelColor(i, r, g, b);
     }
     strip1.show();
-  } else {
+  } else if ( chann <= 4 ) {
     for(i=s; i<e; i++) {
       strip2.setPixelColor(i, r, g, b);
+    }
+    strip2.show();
+  } else {
+    for(i=s; i<e; i++) {
+      strip3.setPixelColor(i, r, g, b);
     }
     strip2.show();
   }
@@ -137,36 +166,36 @@ uint32_t Wheel(byte WheelPos) {
 //- arduino functions -----------------------------------------------------------------------------------------------------
 void setup() {
 
-	// - Hardware setup ---------------------------------------
-	// - everything off ---------------------------------------
+  // - Hardware setup ---------------------------------------
+  // - everything off ---------------------------------------
 
-	EIMSK = 0;																				// disable external interrupts
-	ADCSRA = 0;																				// ADC off
-	power_all_disable();																	// and everything else
-	
-	DDRB = DDRC = DDRD = 0x00;																// everything as input
-	PORTB = PORTC = PORTD = 0x00;															// pullup's off
+  EIMSK = 0;                                        // disable external interrupts
+  ADCSRA = 0;                                       // ADC off
+  power_all_disable();                                  // and everything else
+  
+  DDRB = DDRC = DDRD = 0x00;                                // everything as input
+  PORTB = PORTC = PORTD = 0x00;                             // pullup's off
 
-	// todo: timer0 and SPI should enable internally
-	power_timer0_enable();
-	power_spi_enable();																		// enable only needed functions
+  // todo: timer0 and SPI should enable internally
+  power_timer0_enable();
+  power_spi_enable();                                   // enable only needed functions
 
-	// enable only what is really needed
+  // enable only what is really needed
 
-	#ifdef SER_DBG																			// some debug
-		dbgStart();																			// serial setup
-		dbg << F("HM-LC-Dim2L-SM-2\n");	
-		dbg << F(LIB_VERSION_STRING);
-		_delay_ms (50);																		// ...and some information
-	#endif
+  #ifdef SER_DBG                                      // some debug
+    dbgStart();                                     // serial setup
+    dbg << F("HM-LC-Dim2L-SM-2\n"); 
+    dbg << F(LIB_VERSION_STRING);
+    _delay_ms (50);                                   // ...and some information
+  #endif
 
-	
-	// - AskSin related ---------------------------------------
-	hm.init();																				// init the asksin framework
-	sei();																					// enable interrupts
+  
+  // - AskSin related ---------------------------------------
+  hm.init();                                        // init the asksin framework
+  sei();                                          // enable interrupts
 
 
-	// - user related -----------------------------------------
+  // - user related -----------------------------------------
   strip1.begin();
   strip1.show(); // Initialize all pixels to 'off' 
   strip1.setBrightness(MAX_BRIGHTNESS);
@@ -174,23 +203,32 @@ void setup() {
   strip2.show(); // Initialize all pixels to 'off' 
   strip2.setBrightness(MAX_BRIGHTNESS);
 
+  _delay_ms (1000);
+  showAStrip( &strip1 );
+  _delay_ms (1000);
+  showAStrip( &strip2 );
+  _delay_ms (1000);
+  showAStrip( &strip3 );
+  _delay_ms (5000);
+  
+  
   pinInput(DDRD,7); // init PIR pin
 
   setPinHigh(PORTD,7); // init PIR pin
 
   #ifdef SER_DBG
-		dbg << F("HMID: ") << _HEX(HMID,3) << F(", MAID: ") << _HEX(MAID,3) << F("\n\n");	// some debug
-	#endif
+    dbg << F("HMID: ") << _HEX(HMID,3) << F(", MAID: ") << _HEX(MAID,3) << F("\n\n"); // some debug
+  #endif
 }
 
 unsigned long lasttime = 0;
 void loop() {
-	// - AskSin related ---------------------------------------
-	hm.poll();																				// poll the homematic main loop
-	
-	// - user related -----------------------------------------
+  // - AskSin related ---------------------------------------
+  hm.poll();                                        // poll the homematic main loop
+  
+  // - user related -----------------------------------------
 /*
-	if (( getMillis() - lasttime ) > 500 ) {
+  if (( getMillis() - lasttime ) > 500 ) {
 
     int p = getPin(PIND,7);
     
@@ -198,7 +236,7 @@ void loop() {
       dbg << F("PIR status ") << p << "\n";
     #endif
     lasttime = getMillis();
-	}
+  }
 */
 }
 
@@ -206,21 +244,21 @@ void loop() {
 //- user functions --------------------------------------------------------------------------------------------------------
 void initIt(uint8_t channel) {
 // setting the relay pin as output, could be done also by pinMode(3, OUTPUT)
-	#ifdef SER_DBG
-		dbg << F("initIt: ") << channel << "\n";
-	#endif
-	
-	pinOutput(DDRD,3);																		// init the relay pins
-	setPinLow(PORTD,3);																		// set relay pin to ground
+  #ifdef SER_DBG
+    dbg << F("initIt: ") << channel << "\n";
+  #endif
+  
+  pinOutput(DDRD,3);                                    // init the relay pins
+  setPinLow(PORTD,3);                                   // set relay pin to ground
   setColor( channel, 0, 0, 255 );
 
 }
 
 /*
 void switchIt(uint8_t channel, uint8_t status, uint8_t characteristic) {
-	#ifdef SER_DBG
-		dbg << F("switchIt: ") << channel << ", " << status << ", " << characteristic << "\n";
-	#endif
+  #ifdef SER_DBG
+    dbg << F("switchIt: ") << channel << ", " << status << ", " << characteristic << "\n";
+  #endif
 
   if ( status ) 
     setColor( channel, 0, 32, 0 );
@@ -228,8 +266,8 @@ void switchIt(uint8_t channel, uint8_t status, uint8_t characteristic) {
     setColor( channel, 32, 0, 0 );
 
 
-	if (status) setPinHigh(PORTD,3);														// check status and set relay pin accordingly
-	else setPinLow(PORTD,3);
+  if (status) setPinHigh(PORTD,3);                            // check status and set relay pin accordingly
+  else setPinLow(PORTD,3);
 }
 */
 
@@ -282,25 +320,27 @@ void switchIt2(uint8_t channel, uint8_t status) {
 
 //- predefined functions --------------------------------------------------------------------------------------------------
 void serialEvent() {
-	#ifdef SER_DBG
-	
-	static uint8_t i = 0;																	// it is a high byte next time
-	while (Serial.available()) {
-		uint8_t inChar = (uint8_t)Serial.read();											// read a byte
-		if (inChar == '\n') {																// send to receive routine
-			i = 0;
-			hm.sn.active = 1;
-		}
-		
-		if      ((inChar>96) && (inChar<103)) inChar-=87;									// a - f
-		else if ((inChar>64) && (inChar<71))  inChar-=55;									// A - F
-		else if ((inChar>47) && (inChar<58))  inChar-=48;									// 0 - 9
-		else continue;
-		
-		if (i % 2 == 0) hm.sn.buf[i/2] = inChar << 4;										// high byte
-		else hm.sn.buf[i/2] |= inChar;														// low byte
-		
-		i++;
-	}
-	#endif
+  #ifdef SER_DBG
+  
+  static uint8_t i = 0;                                 // it is a high byte next time
+  while (Serial.available()) {
+    uint8_t inChar = (uint8_t)Serial.read();                      // read a byte
+    if (inChar == '\n') {                               // send to receive routine
+      i = 0;
+      hm.sn.active = 1;
+    }
+    
+    if      ((inChar>96) && (inChar<103)) inChar-=87;                 // a - f
+    else if ((inChar>64) && (inChar<71))  inChar-=55;                 // A - F
+    else if ((inChar>47) && (inChar<58))  inChar-=48;                 // 0 - 9
+    else continue;
+    
+    if (i % 2 == 0) hm.sn.buf[i/2] = inChar << 4;                   // high byte
+    else hm.sn.buf[i/2] |= inChar;                            // low byte
+    
+    i++;
+  }
+  #endif
 }
+
+
