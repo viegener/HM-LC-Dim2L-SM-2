@@ -17,14 +17,15 @@ void cmStatusBoard::config(void Init(uint8_t), void xSwitch(uint8_t,uint8_t)) { 
 	fInit = Init;
 	fSwitch = xSwitch;
 
-	// set output pins
-	fInit(regCnl);
-
 	// some basic settings for start
 	// {no=>0,dlyOn=>1,on=>3,dlyOff=>4,off=>6}
 	curStat = nxtStat = 6;																	// set relay status to off
 	modStat = setStat = 0;
 	
+  // JV move init function after status init, since status is read from memory
+	// set output pins
+	fInit(regCnl);
+
 	srand((uint16_t)hm->ee.getHMID());
 	msgDelay = (rand()%2000)+1000;															// set message delay
 
@@ -42,6 +43,7 @@ void cmStatusBoard::trigger11(uint8_t setValue, uint8_t *rampTime, uint8_t *dura
 	delayTmr.set(0);																		// also delay timer is not needed any more
 	l3->actionType = 0;
 
+  // JV: Ensure new value is sent to handler
   tr11New = 1;
 
 	// convert the timer values
@@ -54,6 +56,11 @@ void cmStatusBoard::trigger11(uint8_t setValue, uint8_t *rampTime, uint8_t *dura
 	// set values to proceed
 	tr11Value = setValue;																	// remember the value to be set
 
+  
+  // JV: Ignore ramp/dura
+  rampTme = 0;
+  duraTme = 0;
+  
 	if (rampTme) {																			// ramp time is given
 		tr11 = 1;																			// indicate we are coming from trigger11
 		curStat = 1;																		// delay on

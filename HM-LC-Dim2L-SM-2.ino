@@ -5,21 +5,15 @@
  * - Created new cmStatusBoard for Status board
  * - reduced code for cmStatusBoard
  * - Ensure switch function called always when trigger11 is received (although value unchanged)
+ * - Channel 1 as signaling code
+ * - store latest status in progmem
  * - 
  * TODO
  * 
- * store latest status in progmem
  * dim display on channel 1
+ * add buttons with 
  * Check function for button 
  * Reduce power consumption on sleep periods
- * change from burst to on activitiy??
- * Channel 1 as signaling code
- *  dimmer sends ->
- *    request for status 1 to 4
- *    initiate action 1 to 4
- *  dimmer receives
- *    status set 1 to 4
- *    action 1 to 4 ok/failed
  * 
  * 
  * 
@@ -31,6 +25,7 @@
 //- load library's --------------------------------------------------------------------------------------------------------
 #include <AS.h>                                       // ask sin framework
 #include "register.h"                                   // configuration sheet
+
 
 
 //- Neopixel --------------------------------------------------------------------------------------------------------
@@ -72,6 +67,42 @@ void mysetPixelColor( uint8_t strip, uint8_t led, uint8_t r, uint8_t g, uint8_t 
   }
 }
   
+void showAStrip( uint8_t strip  ) {
+
+    for(int i=0; i<8; i++) {
+      mysetPixelColor(strip, i, 255,0,0);
+    }
+    myShow( strip );
+
+    _delay_ms (500);
+    
+    for(int i=0; i<8; i++) {
+      mysetPixelColor(strip, i, 0, 255,0);
+    }
+    myShow( strip );
+
+    _delay_ms (500);
+
+    for(int i=0; i<8; i++) {
+      mysetPixelColor(strip, i, 0,0,255);
+    }
+    myShow( strip );
+
+    _delay_ms (500);
+}
+
+void resetAllStrips() {
+
+    for(int i=0; i<8; i++) {
+      strip1.setPixelColor(i, 0,0,0);
+      strip2.setPixelColor(i, 0,0,0);
+      strip2.setPixelColor(i+8, 0,0,0);
+    }
+    strip1.show();
+    strip2.show();
+}
+ 
+
 
 
 //- Neopixel -- Functions ------------------------------------------------------------------------------------------------------
@@ -109,6 +140,17 @@ void mysetPixelColor( uint8_t strip, uint8_t led, uint8_t r, uint8_t g, uint8_t 
  *  Buttons are signaled as on/off on intChannel 1 to 3
  */
 
+
+uint8_t validateIV( uint8_t iv ) {
+  if ( iv > 16 ) return 0;
+  
+  if ( ( iv > 2 ) && ( iv < 5 ) )  return 0;
+  if ( ( iv > 6 ) && ( iv < 11 ) )  return 0;
+  if ( ( iv > 12 ) && ( iv < 15 ) )  return 0;
+
+  return iv;
+}
+
 // Show Status of connection
 void ledStripeStatusHM( uint8_t type, uint8_t stat ) {
   if ( type == 0 ) {
@@ -127,14 +169,14 @@ void ledStripeStatusHM( uint8_t type, uint8_t stat ) {
 
 void showLEDIC( uint8_t ic, uint8_t r, uint8_t g, uint8_t b ) {
   if ( ic == 0 )  {
-    for(int i=0; i<16; i++) {
-      strip2.setPixelColor(i, r,g,b);
-    }
-    strip2.show();
-    for(int i=0; i<8; i++) {
-      strip1.setPixelColor(i, r,g,b);
-    }
-    strip1.show();
+//    for(int i=0; i<16; i++) {
+//      strip2.setPixelColor(i, r,g,b);
+//    }
+//    strip2.show();
+//    for(int i=0; i<8; i++) {
+//      strip1.setPixelColor(i, r,g,b);
+//    }
+//    strip1.show();
   } else if ( ic < 3 ) {
     uint8_t offset = ((ic==2)?8:0);
     for(int i=0; i<8; i++) {
@@ -154,10 +196,20 @@ void showLEDIC( uint8_t ic, uint8_t r, uint8_t g, uint8_t b ) {
 // signal is the value received (already divided by 2)
 void showSignal( uint8_t signal ) {
   uint8_t ic = signal / 20;
-  uint8_t iv = signal % 20;
+  uint8_t iv = validateIV( signal % 20 );
+
+  if ( ic == 0 ) {
+    for(int i=1; i<5; i++) {
+      showSignal( iv+(i*20) );
+    }
+    return;
+  }
 
   uint8_t div = (iv%2==0)?2:1;
 
+  // store value for restart
+  writeLEDIC( ic, iv );
+  
   if ( iv == 0 ) {
     showLEDIC( ic, 0,0,0);
   } else if ( iv < 5 ) {
@@ -184,80 +236,60 @@ void showExternalChannel( uint8_t channel, int status ) {
   }    
 }
 
-
 //-------------------------------------------------------------------------------------------------------------------
 
+//- Save state in unused ?? registers from channel 1 --------------------------------------------------------------------------------------------------------
 
+#define STATE_STORAGE_BASE_ADDR 0x002b
+#define STATE_STORAGE_STATE_ADDR (STATE_STORAGE_BASE_ADDR+0x10)
 
+void writeLEDIC( uint8_t ic, uint8_t newiv ) {
+  uint8_t oldiv;
 
-void showAStrip( uint8_t strip  ) {
+  oldiv = readLEDIC( ic );
 
-    for(int i=0; i<8; i++) {
-      mysetPixelColor(strip, i, 255,0,0);
-    }
-    myShow( strip );
+  if ( oldiv != newiv ) {
+    setEEPromBlock( STATE_STORAGE_BASE_ADDR+ic, 1, &newiv );
 
-    _delay_ms (500);                                   // ...and some information
-    
-    for(int i=0; i<8; i++) {
-      mysetPixelColor(strip, i, 0, 255,0);
-    }
-    myShow( strip );
+  #ifdef SER_DBG
+    dbg << F("written Status ic: ") << ic << "   value: " << newiv << "\n";
+  #endif
 
-    _delay_ms (500);                                   // ...and some information
-
-    for(int i=0; i<8; i++) {
-      mysetPixelColor(strip, i, 0,0,255);
-    }
-    myShow( strip );
-
-    _delay_ms (500);                                   // ...and some information
+    readLEDIC( ic );
+  }
 }
 
-void resetAllStrips() {
+uint8_t readLEDIC( uint8_t ic ) {
+  uint8_t iv;
 
-    for(int i=0; i<8; i++) {
-      strip1.setPixelColor(i, 0,0,0);
-      strip2.setPixelColor(i, 0,0,0);
-      strip2.setPixelColor(i+8, 0,0,0);
-    }
-    strip1.show();
-    strip2.show();
+  getEEPromBlock( STATE_STORAGE_BASE_ADDR+ic, 1, &iv );
+
+  #ifdef SER_DBG
+    dbg << F("read Status ic: ") << ic << "   value: " << iv << "\n";
+  #endif
+
+  return iv;
 }
- 
 
-void setColor(uint8_t chann, uint8_t r, uint8_t g, uint8_t b) {
-  uint16_t i;
 
-  uint16_t s, e;
-  int strip;
-  
-  if ( ( chann % 2 ) == 0 ) {
-    s = 0;
-    e = 3;
-  } else {
-    s = 5;
-    e = 8;
+void writeStateChannel( uint8_t channel, uint8_t newv ) {
+  uint8_t oldiv;
+
+  oldiv = readLEDIC( channel );
+
+  if ( oldiv != newv ) {
+    setEEPromBlock( STATE_STORAGE_STATE_ADDR+channel, 1, &newv );
   }
-  
-  
-  if ( chann <= 2 ) {
-    strip = 1;
-  } else if ( chann <= 4 ) {
-    strip = 2;
-  } else {
-    strip = 3;
-  }
+}
 
-  for(i=s; i<e; i++) {
-    mysetPixelColor( strip, i, r, g, b );
-  }
-  myShow( strip );
+uint8_t readStateChannel( uint8_t channel ) {
+  uint8_t v;
+  getEEPromBlock( STATE_STORAGE_STATE_ADDR+channel, 1, &v );
+  return v;
+}
 
 
-} 
 //-------------------------------------------------------------------------------------------------------------------
-
 
 //- arduino functions -----------------------------------------------------------------------------------------------------
 void setup() {
@@ -285,13 +317,7 @@ void setup() {
     _delay_ms (50);                                   // ...and some information
   #endif
 
-  
-  // - AskSin related ---------------------------------------
-  hm.init();                                        // init the asksin framework
-  sei();                                          // enable interrupts
-
-
-  // - user related -----------------------------------------
+  // - LED strip initializing -----------------------------------------
   strip1.begin();
   strip1.show(); // Initialize all pixels to 'off' 
   strip1.setBrightness(MAX_BRIGHTNESS);
@@ -308,6 +334,14 @@ void setup() {
   showAStrip( 3 );
   _delay_ms (500);
   resetAllStrips();
+  
+  
+  // - AskSin related ---------------------------------------
+  hm.init();                                        // init the asksin framework
+  sei();                                          // enable interrupts
+
+
+  // - user related -----------------------------------------
   
   pinInput(DDRD,7); // init PIR pin
 
@@ -339,16 +373,24 @@ void loop() {
 
 
 //- user functions --------------------------------------------------------------------------------------------------------
-void initIt(uint8_t channel) {
-// setting the relay pin as output, could be done also by pinMode(3, OUTPUT)
+void initLedStatus(uint8_t channel) {
   #ifdef SER_DBG
-    dbg << F("initIt: ") << channel << "\n";
+    dbg << F("initLedStatus: ") << channel << "\n";
   #endif
   
-  setColor( channel, 0, 0, 255 );
+  if ( channel == 1 ) {
+    uint8_t v;
+    for(int i=1; i<5; i++) {
+      v = readLEDIC( i );
+      #ifdef SER_DBG
+        dbg << F("restore Status ic: ") << i << "   value: " << v << "\n";
+      #endif
+      showSignal( v+(i*20) );
+    }
+  }  
+
 
 }
-
 
 void ledStatusSwitch(uint8_t channel, uint8_t status) {
 
@@ -370,6 +412,19 @@ void ledStatusSwitch(uint8_t channel, uint8_t status) {
   
 }
 
+void initChannel(uint8_t channel) {
+// setting the relay pin as output, could be done also by pinMode(3, OUTPUT)
+  #ifdef SER_DBG
+    dbg << F("initChannel: ") << channel << "\n";
+  #endif
+
+  uint8_t v = readStateChannel( channel );
+
+  cmStatusBoard[channel-1].setStat = cmStatusBoard[channel-1].modStat = v;
+  
+}
+
+
 void channelSwitch(uint8_t channel, uint8_t status) {
 // switching the relay, could be done also by digitalWrite(3,HIGH or LOW)
   #ifdef SER_DBG
@@ -377,11 +432,8 @@ void channelSwitch(uint8_t channel, uint8_t status) {
   #endif
 
   showExternalChannel( channel, status );
-  
-
+  writeStateChannel( channel, status );
 }
-
-int mode_ch1 = 0;
 
 
 //- predefined functions --------------------------------------------------------------------------------------------------

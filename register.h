@@ -9,7 +9,8 @@
 AS hm;                                                                  // asksin framework
 
 cmStatusBoard cmStatusBoard[6];                                                 // create instances of channel module 
-extern void initIt(uint8_t channel);                                   // declare function to jump in
+extern void initLedStatus(uint8_t channel);
+extern void initChannel(uint8_t channel);
 extern void ledStatusSwitch(uint8_t channel, uint8_t status);
 extern void channelSwitch(uint8_t channel, uint8_t status);
 uint8_t bTemperature; 
@@ -114,47 +115,26 @@ void everyTimeStart(void) {
 	hm.bt.set(30, 3600000);                                             // set battery check, internal, 2.7 reference, measurement each hour
 	hm.pw.setMode(4);                                                   // set power management mode
 
-     // register user modules
-    cmStatusBoard[0].regInHM(1, 3, &hm);                                    // register user module
-    cmStatusBoard[0].config(&initIt, &ledStatusSwitch);                          // configure user module
+   // register user modules
+  cmStatusBoard[0].regInHM(1, 3, &hm);                                    // register user module
+  cmStatusBoard[0].config(&initLedStatus, &ledStatusSwitch);                          // configure user module
 
-    cmStatusBoard[1].regInHM(2, 3, &hm);                                    // register user module
-    cmStatusBoard[1].config(&initIt, &ledStatusSwitch);                          // configure user module 
+  cmStatusBoard[1].regInHM(2, 3, &hm);                                    // register user module
+  cmStatusBoard[1].config(&initLedStatus, &ledStatusSwitch);                          // configure user module 
+  
+   // register user modules
+  cmStatusBoard[2].regInHM(3, 3, &hm);                                    // register user module
+  cmStatusBoard[2].config(&initChannel, &channelSwitch);                          // configure user module
+
+  cmStatusBoard[3].regInHM(4, 3, &hm);                                    // register user module
+  cmStatusBoard[3].config(&initChannel, &channelSwitch);                          // configure user module 
+  
+  cmStatusBoard[4].regInHM(5, 3, &hm);                                    // register user module
+  cmStatusBoard[4].config(&initChannel, &channelSwitch);                          // configure user module 
+  
+  cmStatusBoard[5].regInHM(6, 3, &hm);                                    // register user module
+  cmStatusBoard[5].config(&initChannel, &channelSwitch);                          // configure user module 
     
-     // register user modules
-    cmStatusBoard[2].regInHM(3, 3, &hm);                                    // register user module
-    cmStatusBoard[2].config(&initIt, &channelSwitch);                          // configure user module
-
-    cmStatusBoard[3].regInHM(4, 3, &hm);                                    // register user module
-    cmStatusBoard[3].config(&initIt, &channelSwitch);                          // configure user module 
-    
-    cmStatusBoard[4].regInHM(5, 3, &hm);                                    // register user module
-    cmStatusBoard[4].config(&initIt, &channelSwitch);                          // configure user module 
-    
-    cmStatusBoard[5].regInHM(6, 3, &hm);                                    // register user module
-    cmStatusBoard[5].config(&initIt, &channelSwitch);                          // configure user module 
-    
-/*    
-    // register user modules
-    cmDimmer[0].regInHM(1, 3, &hm);                                    // register user module
-    cmDimmer[0].config(&initIt, &switchIt, &bTemperature);                          // configure user module
-
-    cmDimmer[1].regInHM(2, 3, &hm);                                    // register user module
-    cmDimmer[1].config(&initIt, &switchIt, &bTemperature);                          // configure user module
-
-/*
-    cmDimmer[2].regInHM(3, 3, &hm);                                    // register user module
-    cmDimmer[2].config(&initIt, &switchIt, &bTemperature);                          // configure user module
-
-    cmDimmer[3].regInHM(4, 3, &hm);                                    // register user module
-    cmDimmer[3].config(&initIt, &switchIt, &bTemperature);                          // configure user module
-
-    cmDimmer[4].regInHM(5, 3, &hm);                                    // register user module
-    cmDimmer[4].config(&initIt, &switchIt, &bTemperature);                          // configure user module
-
-    cmDimmer[5].regInHM(6, 3, &hm);                                    // register user module
-    cmDimmer[5].config(&initIt, &switchIt, &bTemperature);                          // configure user module
-*/
 }
 
 void firstTimeStart(void) {
