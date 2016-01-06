@@ -2,10 +2,14 @@
  * DONE
  * - Test pir sensor
  * - Fix dimmer handling on FF FF ramp time -_> seems to relate to cmDimmer
- * 
+ * - Created new cmStatusBoard for Status board
+ * - reduced code for cmStatusBoard
+ * - Ensure switch function called always when trigger11 is received (although value unchanged)
+ * - 
  * TODO
  * 
- * dim display
+ * store latest status in progmem
+ * dim display on channel 1
  * Check function for button 
  * Reduce power consumption on sleep periods
  * change from burst to on activitiy??
@@ -21,8 +25,6 @@
  * 
  * 
  */
-
-#define MAX_BRIGHTNESS 128
 
 #define SER_DBG                                        // serial debug messages
 
@@ -41,15 +43,77 @@
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(2, 5, NEO_GRB + NEO_KHZ800);  
-Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(2, 14, NEO_GRB + NEO_KHZ800);  
-Adafruit_NeoPixel strip3 = Adafruit_NeoPixel(2, 15, NEO_GRB + NEO_KHZ800);  
+Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(8, 5, NEO_GRB + NEO_KHZ800);  
+Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(16, 4, NEO_GRB + NEO_KHZ800);  
+//- Neopixel --------------------------------------------------------------------------------------------------------
+
+#define MAX_BRIGHTNESS 128
+#define FULL_RED 50
+#define FULL_GREEN 70
+#define FULL_BLUE 70
+
+//--------------------
+
+void myShow( uint8_t strip ) {
+  if ( strip == 1 ) {
+    strip1.show();
+  } else {
+    strip2.show();
+  }
+}
+
+void mysetPixelColor( uint8_t strip, uint8_t led, uint8_t r, uint8_t g, uint8_t b ) {
+  if ( strip == 3 ) {
+    strip2.setPixelColor(led+8, r,g,b);
+  } else if ( strip == 2 ) {
+    strip2.setPixelColor(led, r,g,b);
+  } else {
+    strip1.setPixelColor(led, r,g,b);
+  }
+}
+  
 
 
-void ledstripeStatus( uint8_t type, uint8_t stat ) {
+//- Neopixel -- Functions ------------------------------------------------------------------------------------------------------
+/*
+ * Concept
+ *  Oben Strip 2 erste 8  = intChannel 1
+ *  mitte strip 2 zweite 8 = intChannel 2
+ *  unten Strip 1 - geteilt in 2 = intChannel 3/4
+ *  
+ *  Status set values in SW_01
+ *  
+ *  LED status are for 4 channels 
+ *    3 = HM_606060_Sw1_V_01 = intChannel 1
+ *    4 = HM_606060_Sw1_V_02 = intChannel 2
+ *    5 = HM_606060_Sw2_V_01 = intChannel 3
+ *    6 = HM_606060_Sw2_V_02 = intChannel 4
+ *    
+ *    intChannel 0 is for internal purposes
+ *    
+ *  Communication is coming through: HM_606060_Sw_01 and HM_606060_Sw_02
+ *    HM_606060_Sw_01 - setting pct between 0 and 100 => 0 and 200 in HM
+ *    
+ *    ( intChannel * 20 ) + intValue
+ *    
+ *    intValue = 0 - off
+ *    intValue = 1 - green 
+ *    intValue = 2 - green / 2
+ *    intValue = 5 - red 
+ *    intValue = 6 - red / 2
+ *    intValue = 11 - blue 
+ *    intValue = 12 - blue / 2
+ *    intValue = 15 - white
+ *    intValue = 16 - white / 2
+ *    
+ *  Buttons are signaled as on/off on intChannel 1 to 3
+ */
+
+// Show Status of connection
+void ledStripeStatusHM( uint8_t type, uint8_t stat ) {
   if ( type == 0 ) {
-    strip1.setPixelColor(3, 0, 0, 255);
-    strip1.setPixelColor(4, 0, 0, 255);
+    strip1.setPixelColor(3, 0, 0, 50);
+    strip1.setPixelColor(4, 0, 0, 50);
   } else if ( type == 1 ) {
     strip1.setPixelColor(3, ((stat!=0)?50:0), 0, 0);
     strip1.setPixelColor(4, 0, 0, 0);
@@ -61,62 +125,113 @@ void ledstripeStatus( uint8_t type, uint8_t stat ) {
 }
 
 
-
-
-void rainbow(uint8_t wait) {
-  uint16_t i, j;
-
-  for(j=0; j<256; j++) {
-    for(i=0; i<strip1.numPixels(); i++) {
-      strip1.setPixelColor(i, Wheel((i+j) & 255));
+void showLEDIC( uint8_t ic, uint8_t r, uint8_t g, uint8_t b ) {
+  if ( ic == 0 )  {
+    for(int i=0; i<16; i++) {
+      strip2.setPixelColor(i, r,g,b);
+    }
+    strip2.show();
+    for(int i=0; i<8; i++) {
+      strip1.setPixelColor(i, r,g,b);
     }
     strip1.show();
-    delay(wait);
+  } else if ( ic < 3 ) {
+    uint8_t offset = ((ic==2)?8:0);
+    for(int i=0; i<8; i++) {
+      strip2.setPixelColor(i+offset, r,g,b);
+    }
+    strip2.show();
+  } else {
+    uint8_t offset = ((ic==4)?5:0);
+    for(int i=0; i<3; i++) {
+      strip1.setPixelColor(i+offset, r,g,b);
+    }
+    strip1.show();
   }
-} 
- 
+
+}
+
+// signal is the value received (already divided by 2)
+void showSignal( uint8_t signal ) {
+  uint8_t ic = signal / 20;
+  uint8_t iv = signal % 20;
+
+  uint8_t div = (iv%2==0)?2:1;
+
+  if ( iv == 0 ) {
+    showLEDIC( ic, 0,0,0);
+  } else if ( iv < 5 ) {
+    showLEDIC( ic, 0,FULL_GREEN/div,0 );
+  } else if ( iv < 10 ) {
+    showLEDIC( ic, FULL_RED/div,0,0 );
+  } else if ( iv < 15 ) {
+    showLEDIC( ic, 0,0,FULL_BLUE/div );
+  } else if ( iv < 20 ) {
+    showLEDIC( ic, FULL_RED/div,FULL_GREEN/div,FULL_BLUE/div );
+  }
+}
+
+void showExternalChannel( uint8_t channel, int status ) {
+  if ( channel < 5 ) {
+    uint8_t offset = ((channel==4)?8:0);
+    strip2.setPixelColor(0+offset, 0,0,(status?FULL_BLUE:0));
+    strip2.setPixelColor(7+offset, 0,0,(status?FULL_BLUE:0));
+    strip2.show();
+  } else {
+    uint8_t offset = ((channel==6)?7:0);
+    strip1.setPixelColor(offset, 0,0,(status?FULL_BLUE:0));
+    strip1.show();
+  }    
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------
+
+
+
+
+void showAStrip( uint8_t strip  ) {
+
+    for(int i=0; i<8; i++) {
+      mysetPixelColor(strip, i, 255,0,0);
+    }
+    myShow( strip );
+
+    _delay_ms (500);                                   // ...and some information
+    
+    for(int i=0; i<8; i++) {
+      mysetPixelColor(strip, i, 0, 255,0);
+    }
+    myShow( strip );
+
+    _delay_ms (500);                                   // ...and some information
+
+    for(int i=0; i<8; i++) {
+      mysetPixelColor(strip, i, 0,0,255);
+    }
+    myShow( strip );
+
+    _delay_ms (500);                                   // ...and some information
+}
+
 void resetAllStrips() {
 
     for(int i=0; i<8; i++) {
       strip1.setPixelColor(i, 0,0,0);
       strip2.setPixelColor(i, 0,0,0);
-      strip3.setPixelColor(i, 0,0,0);
+      strip2.setPixelColor(i+8, 0,0,0);
     }
     strip1.show();
     strip2.show();
-    strip3.show();
 }
-
-
-void showAStrip(Adafruit_NeoPixel *strip) {
-
-    for(int i=0; i<8; i++) {
-      strip->setPixelColor(i, 255,0,0);
-    }
-    strip->show();
-
-    _delay_ms (1000);                                   // ...and some information
-    
-    for(int i=0; i<8; i++) {
-      strip->setPixelColor(i, 0,255,0);
-    }
-    strip->show();
-
-    _delay_ms (1000);                                   // ...and some information
-
-    for(int i=0; i<8; i++) {
-      strip->setPixelColor(i, 0,0,255);
-    }
-    strip->show();
-
-    _delay_ms (1000);                                   // ...and some information
-}
+ 
 
 void setColor(uint8_t chann, uint8_t r, uint8_t g, uint8_t b) {
   uint16_t i;
 
   uint16_t s, e;
-
+  int strip;
+  
   if ( ( chann % 2 ) == 0 ) {
     s = 0;
     e = 3;
@@ -127,40 +242,21 @@ void setColor(uint8_t chann, uint8_t r, uint8_t g, uint8_t b) {
   
   
   if ( chann <= 2 ) {
-    for(i=s; i<e; i++) {
-      strip1.setPixelColor(i, r, g, b);
-    }
-    strip1.show();
+    strip = 1;
   } else if ( chann <= 4 ) {
-    for(i=s; i<e; i++) {
-      strip2.setPixelColor(i, r, g, b);
-    }
-    strip2.show();
+    strip = 2;
   } else {
-    for(i=s; i<e; i++) {
-      strip3.setPixelColor(i, r, g, b);
-    }
-    strip2.show();
+    strip = 3;
   }
 
+  for(i=s; i<e; i++) {
+    mysetPixelColor( strip, i, r, g, b );
+  }
+  myShow( strip );
 
 
 } 
- 
-// Input a value 0 to 255 to get a color value.
-// The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos) {
-  if(WheelPos < 85) {
-   return strip1.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-  } else if(WheelPos < 170) {
-   WheelPos -= 85;
-   return strip1.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  } else {
-   WheelPos -= 170;
-   return strip1.Color(0, WheelPos * 3, 255 - WheelPos * 3);
-  }
-}
-  //-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 
 
 //- arduino functions -----------------------------------------------------------------------------------------------------
@@ -201,16 +297,17 @@ void setup() {
   strip1.setBrightness(MAX_BRIGHTNESS);
   strip2.begin();
   strip2.show(); // Initialize all pixels to 'off' 
-  strip2.setBrightness(MAX_BRIGHTNESS);
+  strip2.setBrightness(MAX_BRIGHTNESS); 
 
-  _delay_ms (1000);
-  showAStrip( &strip1 );
-  _delay_ms (1000);
-  showAStrip( &strip2 );
-  _delay_ms (1000);
-  showAStrip( &strip3 );
-  _delay_ms (5000);
   
+  _delay_ms (500);
+  showAStrip( 1 );
+  _delay_ms (500);
+  showAStrip( 2 );
+  _delay_ms (500);
+  showAStrip( 3 );
+  _delay_ms (500);
+  resetAllStrips();
   
   pinInput(DDRD,7); // init PIR pin
 
@@ -248,75 +345,44 @@ void initIt(uint8_t channel) {
     dbg << F("initIt: ") << channel << "\n";
   #endif
   
-  pinOutput(DDRD,3);                                    // init the relay pins
-  setPinLow(PORTD,3);                                   // set relay pin to ground
   setColor( channel, 0, 0, 255 );
 
 }
 
-/*
-void switchIt(uint8_t channel, uint8_t status, uint8_t characteristic) {
+
+void ledStatusSwitch(uint8_t channel, uint8_t status) {
+
   #ifdef SER_DBG
-    dbg << F("switchIt: ") << channel << ", " << status << ", " << characteristic << "\n";
+    dbg << F("ledStatusSwitch: ") << channel << "  status: " << status << "\n";
+  #endif
+  if ( channel == 1 ) {
+    // signalling is coming in channel 0 only
+    uint8_t signal = status/2;
+
+    // minimum sanity check
+    if ( signal < 100 ) {
+      #ifdef SER_DBG
+        dbg << F("ledStatusSwitch: signaling ") << signal << "\n";
+      #endif
+      showSignal( signal );
+    }      
+  }
+  
+}
+
+void channelSwitch(uint8_t channel, uint8_t status) {
+// switching the relay, could be done also by digitalWrite(3,HIGH or LOW)
+  #ifdef SER_DBG
+    dbg << F("channelSwitch: ") << channel << ", " << status << "\n";
   #endif
 
-  if ( status ) 
-    setColor( channel, 0, 32, 0 );
-  else
-    setColor( channel, 32, 0, 0 );
+  showExternalChannel( channel, status );
+  
 
-
-  if (status) setPinHigh(PORTD,3);                            // check status and set relay pin accordingly
-  else setPinLow(PORTD,3);
 }
-*/
 
 int mode_ch1 = 0;
 
-void switchIt2(uint8_t channel, uint8_t status) {
-// switching the relay, could be done also by digitalWrite(3,HIGH or LOW)
-  #ifdef SER_DBG
-    dbg << F("switchIt: ") << channel << ", " << status << "\n";
-  #endif
-
-  if ( channel == 1 ) {
-    mode_ch1++;
-    if ( mode_ch1 > 2 ) mode_ch1 = 0;
-
-    
-    if ( mode_ch1 == 0 ) {
-      strip1.setBrightness(MAX_BRIGHTNESS);
-      strip2.setBrightness(MAX_BRIGHTNESS);
-      strip3.setBrightness(MAX_BRIGHTNESS);
-      setColor( 0, 0, 0, 255 );
-      setColor( 1, 0, 0, 255 );
-      setColor( 2, 0, 0, 255 );
-      setColor( 3, 0, 0, 255 );
-    } else if ( mode_ch1 == 1 ) {
-      strip1.setBrightness(MAX_BRIGHTNESS/10);
-      strip2.setBrightness(MAX_BRIGHTNESS/10);
-      strip3.setBrightness(MAX_BRIGHTNESS/10);
-      strip1.show();
-      strip2.show();
-      strip3.show();
-      dbg << F("strip2 dark ") << "\n";
-    } else {
-      strip1.setBrightness(0);
-      strip2.setBrightness(0);
-      strip3.setBrightness(0);
-      resetAllStrips();
-    }
-  }
-
-  if ( status ) 
-    setColor( channel, 0, 32, 0 );
-  else
-    setColor( channel, 32, 0, 0 );
-
-
-  if (status) setPinHigh(PORTD,3);                            // check status and set relay pin accordingly
-  else setPinLow(PORTD,3);
-}
 
 //- predefined functions --------------------------------------------------------------------------------------------------
 void serialEvent() {

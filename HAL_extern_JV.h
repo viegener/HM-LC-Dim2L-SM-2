@@ -47,15 +47,15 @@ void    ccDeselect(void) {
 
 #ifdef LED_STRIP_STATUSLED
 
-extern void ledstripeStatus( uint8_t type, uint8_t stat );
+extern void ledStripeStatusHM( uint8_t type, uint8_t stat );
 void    initLeds(void) {
-  ledstripeStatus( 0, 0 );
+  ledStripeStatusHM( 0, 0 );
 }
 void    ledRed(uint8_t stat) {
-  ledstripeStatus( 1, stat );
+  ledStripeStatusHM( 1, stat );
 }
 void    ledGrn(uint8_t stat) {
-  ledstripeStatus( 2, stat );
+  ledStripeStatusHM( 2, stat );
 }
 
 #else
