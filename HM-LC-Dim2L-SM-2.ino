@@ -7,9 +7,12 @@
  * - Ensure switch function called always when trigger11 is received (although value unchanged)
  * - Channel 1 as signaling code
  * - store latest status in progmem
- * - 
+ * - powermode needed to be enabled/switched later
+ * - added dim on channel2
+ * 
  * TODO
  * 
+ * - added restore on channel 1 full value not working?
  * dim display on channel 1
  * add buttons with 
  * Check function for button 
@@ -27,6 +30,7 @@
 #include "register.h"                                   // configuration sheet
 
 
+#include "button.h"  
 
 //- Neopixel --------------------------------------------------------------------------------------------------------
 #include <Adafruit_NeoPixel.h> 
@@ -236,6 +240,16 @@ void showExternalChannel( uint8_t channel, int status ) {
   }    
 }
 
+void restoreAllICFromEE() {
+  uint8_t v;
+  for(int i=1; i<5; i++) {
+    v = readLEDIC( i );
+//      #ifdef SER_DBG
+//        dbg << F("restore Status ic: ") << i << "   value: " << v << "\n";
+//      #endif
+    showSignal( v+(i*20) );
+  }
+}
 //-------------------------------------------------------------------------------------------------------------------
 
 //- Save state in unused ?? registers from channel 1 --------------------------------------------------------------------------------------------------------
@@ -251,11 +265,9 @@ void writeLEDIC( uint8_t ic, uint8_t newiv ) {
   if ( oldiv != newiv ) {
     setEEPromBlock( STATE_STORAGE_BASE_ADDR+ic, 1, &newiv );
 
-  #ifdef SER_DBG
-    dbg << F("written Status ic: ") << ic << "   value: " << newiv << "\n";
-  #endif
-
-    readLEDIC( ic );
+//  #ifdef SER_DBG
+//    dbg << F("written Status ic: ") << ic << "   value: " << newiv << "\n";
+//  #endif
   }
 }
 
@@ -264,10 +276,10 @@ uint8_t readLEDIC( uint8_t ic ) {
 
   getEEPromBlock( STATE_STORAGE_BASE_ADDR+ic, 1, &iv );
 
-  #ifdef SER_DBG
-    dbg << F("read Status ic: ") << ic << "   value: " << iv << "\n";
-  #endif
-
+//  #ifdef SER_DBG
+//    dbg << F("read Status ic: ") << ic << "   value: " << iv << "\n";
+//  #endif
+//
   return iv;
 }
 
@@ -328,23 +340,25 @@ void setup() {
   
   _delay_ms (500);
   showAStrip( 1 );
-  _delay_ms (500);
   showAStrip( 2 );
-  _delay_ms (500);
   showAStrip( 3 );
-  _delay_ms (500);
   resetAllStrips();
+  _delay_ms (200);
   
   
   // - AskSin related ---------------------------------------
   hm.init();                                        // init the asksin framework
   sei();                                          // enable interrupts
 
+// power mode needs to be set after init / otherways will be overwritten during init
+//  hm.pw.setMode(4);                                                   // set power management mode
 
   // - user related -----------------------------------------
   
   pinInput(DDRD,7); // init PIR pin
+  setPinHigh(PORTD,7); // init PIR pin
 
+  pinInput(DDRD,7); // init PIR pin
   setPinHigh(PORTD,7); // init PIR pin
 
   #ifdef SER_DBG
@@ -379,20 +393,13 @@ void initLedStatus(uint8_t channel) {
   #endif
   
   if ( channel == 1 ) {
-    uint8_t v;
-    for(int i=1; i<5; i++) {
-      v = readLEDIC( i );
-      #ifdef SER_DBG
-        dbg << F("restore Status ic: ") << i << "   value: " << v << "\n";
-      #endif
-      showSignal( v+(i*20) );
-    }
+    restoreAllICFromEE();
   }  
 
 
 }
 
-void ledStatusSwitch(uint8_t channel, uint8_t status) {
+void ledStatusSwitch(uint8_t channel, uint8_t status, uint8_t toggle) {
 
   #ifdef SER_DBG
     dbg << F("ledStatusSwitch: ") << channel << "  status: " << status << "\n";
@@ -401,13 +408,31 @@ void ledStatusSwitch(uint8_t channel, uint8_t status) {
     // signalling is coming in channel 0 only
     uint8_t signal = status/2;
 
+    if ( toggle )  {
+      uint16_t vr = readButton();
+      #ifdef SER_DBG
+        dbg << F("ledStatusSwitch: button value ") << vr << "\n";
+      #endif
+
+      // Ensure no further handling of button press
+      signal = 255;
+    }
+    
     // minimum sanity check
     if ( signal < 100 ) {
       #ifdef SER_DBG
         dbg << F("ledStatusSwitch: signaling ") << signal << "\n";
       #endif
       showSignal( signal );
-    }      
+    } else if ( signal == 100 ) {
+      restoreAllICFromEE();
+    }
+  } else {
+    // channel 2 is dim
+    strip1.setBrightness( min( MAX_BRIGHTNESS, status ) );
+    strip2.setBrightness( min( MAX_BRIGHTNESS, status ) );
+    strip1.show();
+    strip2.show();
   }
   
 }
@@ -425,7 +450,7 @@ void initChannel(uint8_t channel) {
 }
 
 
-void channelSwitch(uint8_t channel, uint8_t status) {
+void channelSwitch(uint8_t channel, uint8_t status, uint8_t toggle) {
 // switching the relay, could be done also by digitalWrite(3,HIGH or LOW)
   #ifdef SER_DBG
     dbg << F("channelSwitch: ") << channel << ", " << status << "\n";

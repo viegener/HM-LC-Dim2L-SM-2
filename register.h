@@ -11,8 +11,8 @@ AS hm;                                                                  // asksi
 cmStatusBoard cmStatusBoard[6];                                                 // create instances of channel module 
 extern void initLedStatus(uint8_t channel);
 extern void initChannel(uint8_t channel);
-extern void ledStatusSwitch(uint8_t channel, uint8_t status);
-extern void channelSwitch(uint8_t channel, uint8_t status);
+extern void ledStatusSwitch(uint8_t channel, uint8_t status, uint8_t toggle);
+extern void channelSwitch(uint8_t channel, uint8_t status, uint8_t toggle);
 uint8_t bTemperature; 
 
 //- ----------------------------------------------------------------------------------------------------------------------
@@ -113,7 +113,7 @@ void everyTimeStart(void) {
 	hm.ld.init(2, &hm);                                                 // set the led
 	hm.ld.set(welcome);                                                 // show something
 	hm.bt.set(30, 3600000);                                             // set battery check, internal, 2.7 reference, measurement each hour
-	hm.pw.setMode(4);                                                   // set power management mode
+	hm.pw.setMode(0);                                                   // set power management mode
 
    // register user modules
   cmStatusBoard[0].regInHM(1, 3, &hm);                                    // register user module
