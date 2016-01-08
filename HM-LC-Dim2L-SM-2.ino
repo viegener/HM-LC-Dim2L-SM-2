@@ -9,6 +9,7 @@
  * - store latest status in progmem
  * - powermode needed to be enabled/switched later
  * - added dim on channel2
+ * - button is send to module as button value 88 / 68 / ...
  * 
  * TODO
  * 
@@ -29,8 +30,6 @@
 #include <AS.h>                                       // ask sin framework
 #include "register.h"                                   // configuration sheet
 
-
-#include "button.h"  
 
 //- Neopixel --------------------------------------------------------------------------------------------------------
 #include <Adafruit_NeoPixel.h> 
@@ -399,7 +398,7 @@ void initLedStatus(uint8_t channel) {
 
 }
 
-void ledStatusSwitch(uint8_t channel, uint8_t status, uint8_t toggle) {
+void ledStatusSwitch(uint8_t channel, uint8_t status, uint8_t button) {
 
   #ifdef SER_DBG
     dbg << F("ledStatusSwitch: ") << channel << "  status: " << status << "\n";
@@ -408,10 +407,9 @@ void ledStatusSwitch(uint8_t channel, uint8_t status, uint8_t toggle) {
     // signalling is coming in channel 0 only
     uint8_t signal = status/2;
 
-    if ( toggle )  {
-      uint16_t vr = readButton();
+    if ( button > 0 )  {
       #ifdef SER_DBG
-        dbg << F("ledStatusSwitch: button value ") << vr << "\n";
+        dbg << F("ledStatusSwitch: button value ") << button << "\n";
       #endif
 
       // Ensure no further handling of button press

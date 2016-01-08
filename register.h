@@ -11,8 +11,8 @@ AS hm;                                                                  // asksi
 cmStatusBoard cmStatusBoard[6];                                                 // create instances of channel module 
 extern void initLedStatus(uint8_t channel);
 extern void initChannel(uint8_t channel);
-extern void ledStatusSwitch(uint8_t channel, uint8_t status, uint8_t toggle);
-extern void channelSwitch(uint8_t channel, uint8_t status, uint8_t toggle);
+extern void ledStatusSwitch(uint8_t channel, uint8_t status, uint8_t button);
+extern void channelSwitch(uint8_t channel, uint8_t status, uint8_t button);
 uint8_t bTemperature; 
 
 //- ----------------------------------------------------------------------------------------------------------------------
